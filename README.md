@@ -5,7 +5,8 @@ A sophisticated multi-agent system for analyzing geopolitical news, tracking rhe
 ## Overview
 
 This system uses AI agents to automatically:
-- 📰 **Aggregate news** from multiple free sources (NewsAPI, Guardian)
+- 📰 **Aggregate news** from multiple international sources (NewsAPI, Guardian, BBC, Euronews, Deutsche Welle, France 24, CGTN, China Daily, Xinhua, Al Jazeera, RT)
+- 🌍 **Multi-language support** with automatic translation from Chinese, German, French, Russian, and other languages
 - 🔗 **Cluster articles** by event using semantic similarity
 - 📝 **Analyze rhetoric** and language patterns over time
 - 🔮 **Predict trajectories** (escalating, de-escalating, or stable)
@@ -179,7 +180,14 @@ Data is timestamped and versioned, allowing historical analysis.
 ## How It Works
 
 ### 1. News Aggregation
-- Fetches articles from configured APIs based on geopolitical keywords
+- Fetches articles from **12 international news sources** via APIs and RSS feeds:
+  - **English APIs**: NewsAPI, Guardian
+  - **European RSS**: BBC World, Euronews, Deutsche Welle, France 24, EUobserver
+  - **Chinese/Asian RSS**: CGTN, China Daily, Xinhua
+  - **Middle East**: Al Jazeera
+  - **Russian perspective**: RT World
+- **Automatic translation** from non-English sources (Chinese, German, French, Russian, Arabic)
+- Intelligent geopolitical content filtering
 - Extracts title, subtitle, description, and metadata
 - Generates semantic embeddings for each article
 - Performs basic sentiment analysis
@@ -299,20 +307,22 @@ python main.py --use-existing
 ## Limitations
 
 - **API Rate Limits**: Free APIs have request limits (NewsAPI: 100/day)
-- **English Only**: Currently optimized for English-language news
+- **Translation Quality**: Auto-translation may not capture nuances in some languages
 - **Simple Predictions**: Based on rhetoric analysis, not political expertise
 - **Free APIs**: Limited to freely available article information (no full text)
+- **RSS Feed Coverage**: RSS feeds provide less article detail than full APIs
 
 ## Future Enhancements
 
 Potential improvements:
-- Additional news sources (Reuters, BBC, etc.)
-- Support for multiple languages
+- Additional news sources (Reuters API, Associated Press, etc.)
+- Enhanced translation with context awareness
 - Interactive web dashboard
 - Historical pattern database
 - Integration with academic datasets
 - Real-time monitoring mode
 - Email/Slack alerts for escalating events
+- Multi-language sentiment analysis (currently English-based after translation)
 
 ## Troubleshooting
 
