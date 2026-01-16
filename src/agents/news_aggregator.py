@@ -1,10 +1,11 @@
 import os
 import hashlib
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict
 import requests
+import feedparser
 from src.models import Article
-from src.utils import NLPProcessor
+from src.utils import NLPProcessor, Translator
 
 
 class NewsAggregatorAgent:
@@ -14,6 +15,7 @@ class NewsAggregatorAgent:
         self.newsapi_key = newsapi_key or os.getenv('NEWSAPI_KEY')
         self.guardian_key = guardian_key or os.getenv('GUARDIAN_API_KEY')
         self.nlp = NLPProcessor()
+        self.translator = Translator()
 
         # Topics related to world order and geopolitics
         self.topics = [
@@ -43,21 +45,49 @@ class NewsAggregatorAgent:
             'military tension'
         ]
 
+        # International RSS feeds (free sources from Europe, China, and global outlets)
+        self.rss_feeds = {
+            # European sources
+            'BBC World': 'http://feeds.bbci.co.uk/news/world/rss.xml',
+            'Euronews': 'https://www.euronews.com/rss',
+            'Deutsche Welle': 'https://rss.dw.com/xml/rss-en-world',
+            'France 24': 'https://www.france24.com/en/rss',
+            'EUobserver': 'https://euobserver.com/rss',
+
+            # Chinese/Asian sources (English versions)
+            'CGTN': 'https://www.cgtn.com/subscribe/rss/section/world.xml',
+            'China Daily': 'http://www.chinadaily.com.cn/rss/world_rss.xml',
+            'Xinhua': 'http://www.xinhuanet.com/english/rss/worldrss.xml',
+
+            # Middle East perspective
+            'Al Jazeera': 'https://www.aljazeera.com/xml/rss/all.xml',
+
+            # Russian perspective
+            'RT World': 'https://www.rt.com/rss/news/',
+        }
+
     def fetch_news(self, days_back: int = 7, max_articles: int = 100) -> List[Article]:
         """Fetch news articles from all available sources"""
         articles = []
 
+        # Calculate distribution of articles across sources
+        num_sources = 2 + len(self.rss_feeds)  # NewsAPI + Guardian + RSS feeds
+        articles_per_source = max_articles // num_sources
+
         print("🔍 Fetching news from NewsAPI...")
         if self.newsapi_key:
-            articles.extend(self._fetch_from_newsapi(days_back, max_articles // 2))
+            articles.extend(self._fetch_from_newsapi(days_back, articles_per_source))
         else:
             print("⚠️  NewsAPI key not found. Skipping NewsAPI.")
 
         print("🔍 Fetching news from Guardian API...")
         if self.guardian_key:
-            articles.extend(self._fetch_from_guardian(days_back, max_articles // 2))
+            articles.extend(self._fetch_from_guardian(days_back, articles_per_source))
         else:
             print("⚠️  Guardian API key not found. Skipping Guardian.")
+
+        print(f"🌍 Fetching international news from {len(self.rss_feeds)} RSS feeds...")
+        articles.extend(self._fetch_from_rss_feeds(days_back, articles_per_source))
 
         # Remove duplicates based on URL
         unique_articles = self._deduplicate_articles(articles)
@@ -242,3 +272,126 @@ class NewsAggregatorAgent:
             embeddings = self.nlp.get_embeddings_batch(texts)
             for article, embedding in zip(articles, embeddings):
                 article.embedding = embedding
+
+    def _fetch_from_rss_feeds(self, days_back: int, max_articles_per_feed: int = 10) -> List[Article]:
+        """Fetch articles from international RSS feeds"""
+        articles = []
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+
+        for source_name, feed_url in self.rss_feeds.items():
+            try:
+                print(f"  Fetching from {source_name}...")
+                feed = feedparser.parse(feed_url)
+
+                if not feed.entries:
+                    print(f"    No entries found for {source_name}")
+                    continue
+
+                feed_articles = 0
+                for entry in feed.entries[:max_articles_per_feed]:
+                    try:
+                        article = self._parse_rss_article(entry, source_name)
+                        if article and article.published_at >= cutoff_date:
+                            articles.append(article)
+                            feed_articles += 1
+                    except Exception as e:
+                        print(f"    Error parsing entry from {source_name}: {e}")
+                        continue
+
+                print(f"    ✓ Collected {feed_articles} articles from {source_name}")
+
+            except Exception as e:
+                print(f"    Error fetching from {source_name}: {e}")
+                continue
+
+        return articles
+
+    def _parse_rss_article(self, entry: Dict, source_name: str) -> Optional[Article]:
+        """Parse RSS feed entry into Article object"""
+        try:
+            # Generate unique ID
+            url = entry.get('link', entry.get('id', ''))
+            article_id = hashlib.md5(url.encode()).hexdigest()
+
+            # Extract title and description
+            title = entry.get('title', '')
+            description = entry.get('summary', entry.get('description', ''))
+
+            # Clean HTML tags from description if present
+            if description:
+                import re
+                description = re.sub(r'<[^>]+>', '', description)
+                description = description[:500]  # Limit length
+
+            # Translate if needed
+            if title and not self.translator.is_english(title):
+                print(f"    Translating from {source_name}...")
+                title = self.translator.translate_to_english(title)
+                if description:
+                    description = self.translator.translate_to_english(description)
+
+            # Parse published date
+            published_at = None
+            if 'published_parsed' in entry and entry.published_parsed:
+                from time import mktime
+                published_at = datetime.fromtimestamp(mktime(entry.published_parsed))
+            elif 'updated_parsed' in entry and entry.updated_parsed:
+                from time import mktime
+                published_at = datetime.fromtimestamp(mktime(entry.updated_parsed))
+            else:
+                # Default to current time if no date available
+                published_at = datetime.now()
+
+            # Extract content
+            content = f"{title} {description}"
+
+            # Check if article is relevant to geopolitics
+            if not self._is_geopolitics_related(content):
+                return None
+
+            # Extract keywords and sentiment
+            keywords = self.nlp.extract_keywords(content)
+            sentiment = self.nlp.analyze_sentiment_simple(content)
+
+            # Get author if available
+            author = entry.get('author', None)
+
+            return Article(
+                id=article_id,
+                title=title,
+                subtitle=None,
+                description=description,
+                url=url,
+                source=source_name,
+                author=author,
+                published_at=published_at,
+                content_snippet=description[:300] if description else None,
+                keywords=keywords,
+                sentiment_score=sentiment
+            )
+
+        except Exception as e:
+            print(f"    Error parsing RSS article: {e}")
+            return None
+
+    def _is_geopolitics_related(self, text: str) -> bool:
+        """Check if article content is related to geopolitics"""
+        if not text:
+            return False
+
+        text_lower = text.lower()
+
+        # Check if any topic keywords are present
+        geopolitics_keywords = [
+            'geopolit', 'diplomatic', 'diplomacy', 'international',
+            'foreign policy', 'summit', 'treaty', 'alliance',
+            'sanctions', 'trade war', 'military', 'defense',
+            'territory', 'border', 'conflict', 'war', 'peace',
+            'united nations', 'nato', 'security council',
+            'president', 'prime minister', 'government',
+            'election', 'democracy', 'authoritarian',
+            'china', 'russia', 'usa', 'europe', 'ukraine',
+            'taiwan', 'middle east', 'israel', 'iran'
+        ]
+
+        return any(keyword in text_lower for keyword in geopolitics_keywords)
