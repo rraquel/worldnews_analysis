@@ -71,7 +71,37 @@ ANALYSIS_LOOKBACK_DAYS=30
 
 ## Usage
 
-### Basic Usage
+### 🌍 Web Interface (NEW!)
+
+The easiest way to use the system is through the interactive web interface:
+
+**Linux/Mac:**
+```bash
+./run_interface.sh
+```
+
+**Windows:**
+```bash
+run_interface.bat
+```
+
+**Or manually:**
+```bash
+streamlit run app.py
+```
+
+The web interface provides:
+- 📋 **20 predefined global conflict topics** (China-Taiwan, Ukraine-Russia, Iran Nuclear, etc.)
+- 🎚️ **3 analysis depth levels** (Quick, Standard, Deep)
+- 📊 **Rich visualizations** (sentiment timelines, heatmaps, prediction dashboards)
+- 🏷️ **Topic modeling** with BERTopic for sub-theme discovery
+- 📈 **Rhetoric evolution charts** showing how language changes over time
+- 💾 **Export options** (text reports, JSON data)
+- 🎯 **Interactive exploration** of events, actors, and articles
+
+See [INTERFACE_GUIDE.md](INTERFACE_GUIDE.md) for detailed documentation.
+
+### Command-Line Interface
 
 Run a complete analysis of the last 7 days:
 ```bash
@@ -312,17 +342,28 @@ python main.py --use-existing
 - **Free APIs**: Limited to freely available article information (no full text)
 - **RSS Feed Coverage**: RSS feeds provide less article detail than full APIs
 
+## Recent Enhancements
+
+✅ **Implemented:**
+- Interactive web dashboard with Streamlit
+- Topic modeling with BERTopic
+- Rich visualizations (timelines, heatmaps, dashboards)
+- 20 predefined global conflict topics
+- Configurable analysis depth (Quick/Standard/Deep)
+- Export to text and JSON formats
+
 ## Future Enhancements
 
 Potential improvements:
 - Additional news sources (Reuters API, Associated Press, etc.)
 - Enhanced translation with context awareness
-- Interactive web dashboard
 - Historical pattern database
 - Integration with academic datasets
 - Real-time monitoring mode
 - Email/Slack alerts for escalating events
 - Multi-language sentiment analysis (currently English-based after translation)
+- Network graphs for actor relationships
+- PDF report generation
 
 ## Troubleshooting
 
